@@ -35,7 +35,7 @@
         {
           "android": {
             "extraMavenRepos": [
-              "$rootDir/../node_modules/@notifee/react-native/android/libs"
+              "../../node_modules/@notifee/react-native/android/libs"
             ]
           }
         }

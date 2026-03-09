@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, FlatList, TextInput, StyleSheet, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -10,8 +10,10 @@ import { niceAlert } from '../components/NiceAlert';
 type CheckeoRow = {
     id: number;
     check_patente_id: number;
+    check_patente?: { codigo: string };
     fecha_chequeo: string;
     completado: boolean;
+    check_usuarios: any[];
 };
 
 export default function MisCheckeosScreen() {
@@ -20,7 +22,7 @@ export default function MisCheckeosScreen() {
     const [query, setQuery] = useState('');
 
     const [modalVisible, setModalVisible] = useState(false);
-    const [patenteIdInput, setPatenteIdInput] = useState('');
+    const [patenteCodigoInput, setPatenteCodigoInput] = useState('');
     const [usuariosIdsInput, setUsuariosIdsInput] = useState('');
     const [creando, setCreando] = useState(false);
 
@@ -34,10 +36,11 @@ export default function MisCheckeosScreen() {
         try {
             const userId = await AsyncStorage.getItem("usuario_id");
             if (!userId) return;
-            const data = await getJson<CheckeoRow[]>("camioneta/api/v1/checkeos", userId);
-            setRows(data);
+            const data = await getJson<CheckeoRow[]>("checkeos", userId);
+            const misCheckeos = data.filter(c => c.check_usuarios?.some(u => String(u.id) === userId));
+            setRows(misCheckeos);
         } catch (e) {
-            console.log("Error cargando checkeos", e);
+            niceAlert("Error", "No se pudieron cargar los chequeos");
         }
     };
 
@@ -48,8 +51,8 @@ export default function MisCheckeosScreen() {
     );
 
     const handleCrear = async () => {
-        if (!patenteIdInput.trim()) {
-            niceAlert("Error", "Debes ingresar un ID de patente");
+        if (!patenteCodigoInput.trim()) {
+            niceAlert("Error", "Debes ingresar el código de la patente");
             return;
         }
 
@@ -65,16 +68,16 @@ export default function MisCheckeosScreen() {
 
             const body = {
                 checkeo: {
-                    check_patente_id: parseInt(patenteIdInput, 10),
+                    patente_codigo: patenteCodigoInput.trim().toUpperCase(),
                     fecha_chequeo: new Date().toISOString().split('T')[0]
                 },
                 usuario_ids: usuariosArray
             };
 
-            await postJson("camioneta/api/v1/checkeos", body, { Authorization: currentUserId });
+            await postJson("checkeos", body, { Authorization: `Bearer ${currentUserId}` });
 
             setModalVisible(false);
-            setPatenteIdInput('');
+            setPatenteCodigoInput('');
             setUsuariosIdsInput('');
             cargarCheckeos();
 
@@ -88,7 +91,7 @@ export default function MisCheckeosScreen() {
     const renderItem = ({ item }: { item: CheckeoRow }) => (
         <View style={styles.card}>
             <View style={{ flex: 1, paddingRight: 12 }}>
-                <Text style={styles.title}>Patente ID: {item.check_patente_id}</Text>
+                <Text style={styles.title}>Patente: {item.check_patente?.codigo || item.check_patente_id}</Text>
                 <Text style={styles.meta}>Fecha: {item.fecha_chequeo}</Text>
                 <Text style={[styles.meta, { color: item.completado ? 'green' : 'orange' }]}>
                     {item.completado ? 'Completado' : 'Pendiente'}
@@ -107,9 +110,8 @@ export default function MisCheckeosScreen() {
                 <TextInput
                     value={query}
                     onChangeText={setQuery}
-                    placeholder="Buscar por ID de patente..."
+                    placeholder="Buscar..."
                     style={styles.searchInput}
-                    keyboardType="numeric"
                 />
             </View>
 
@@ -129,12 +131,13 @@ export default function MisCheckeosScreen() {
                     <View style={styles.modalBox}>
                         <Text style={styles.modalTitle}>Nuevo Chequeo</Text>
 
-                        <Text style={styles.label}>ID Patente</Text>
+                        <Text style={styles.label}>Código Patente</Text>
                         <TextInput
                             style={styles.input}
-                            value={patenteIdInput}
-                            onChangeText={setPatenteIdInput}
-                            keyboardType="numeric"
+                            value={patenteCodigoInput}
+                            onChangeText={setPatenteCodigoInput}
+                            placeholder="Ej: AB-CD-12"
+                            autoCapitalize="characters"
                         />
 
                         <Text style={styles.label}>Otros Inspectores (IDs separados por coma)</Text>
@@ -143,6 +146,7 @@ export default function MisCheckeosScreen() {
                             value={usuariosIdsInput}
                             onChangeText={setUsuariosIdsInput}
                             placeholder="Ej: 2, 5"
+                            keyboardType="numbers-and-punctuation"
                         />
 
                         <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>

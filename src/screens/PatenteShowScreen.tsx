@@ -1,24 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useRoute, useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import PillButton from '../components/PillButton';
+import { getJson } from '../api/http';
+import { niceAlert } from '../components/NiceAlert';
 
 type Periodo = 'semana' | 'mes' | 'ano';
 
 export default function PatenteShowScreen() {
     const route = useRoute<any>();
-    const nav = useNavigation<any>();
     const { patenteId, codigo } = route.params || {};
 
     const [periodo, setPeriodo] = useState<Periodo>('semana');
+    const [historial, setHistorial] = useState<any[]>([]);
+    const [fechaServidor, setFechaServidor] = useState<string>('');
+    const [esDueno, setEsDueno] = useState(false);
 
-    const [historial] = useState([
-        { id: 1, fecha: '2023-10-01', estado: 'Completado', inspectores: 'Inspector 1, Inspector 2' },
-        { id: 2, fecha: '2023-10-02', estado: 'Pendiente', inspectores: 'Inspector 3' },
-    ]);
+    const cargarHistorial = async (p: Periodo) => {
+        try {
+            const userId = await AsyncStorage.getItem("usuario_id");
+            if (!userId) return;
 
-    const esDueno = true;
+            const data = await getJson<any>(`patentes/${patenteId}?periodo=${p}`, userId);
+            setFechaServidor(data.fecha_servidor);
+
+            const checkeosFormateados = data.checkeos.map((c: any) => ({
+                id: c.id,
+                fecha: c.fecha_chequeo,
+                estado: c.completado ? 'Completado' : 'Pendiente',
+                inspectores: c.check_usuarios.map((u: any) => u.nombre).join(', ') || 'Sin asignar',
+                soyDueno: c.check_usuarios.some((u: any) => String(u.id) === userId)
+            }));
+
+            setHistorial(checkeosFormateados);
+        } catch (e) {
+            niceAlert("Error", "No se pudo cargar el historial");
+        }
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            cargarHistorial(periodo);
+        }, [periodo, patenteId])
+    );
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: '#f8f9fa' }} edges={['bottom']}>
@@ -26,8 +52,6 @@ export default function PatenteShowScreen() {
 
                 <View style={styles.headerCard}>
                     <Text style={styles.title}>Patente: {codigo}</Text>
-                    <Text style={styles.status}>Estado Actual: <Text style={{ color: 'green' }}>Óptimo</Text></Text>
-                    <Text style={styles.meta}>Últimos inspectores: Inspector 1, Inspector 2</Text>
                 </View>
 
                 <View style={styles.tabs}>
@@ -46,7 +70,7 @@ export default function PatenteShowScreen() {
 
                 {periodo === 'ano' ? (
                     <View style={styles.placeholderBox}>
-                        <Text style={styles.placeholderText}>Calendario Anual (En construcción)</Text>
+                        <Text style={styles.placeholderText}>Calendario Anual (placeholder)</Text>
                     </View>
                 ) : (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tableContainer}>
@@ -66,7 +90,7 @@ export default function PatenteShowScreen() {
                                     </Text>
                                     <Text style={[styles.cell, { width: 180 }]} numberOfLines={1}>{row.inspectores}</Text>
                                     <View style={[styles.cell, { width: 150, justifyContent: 'center' }]}>
-                                        {esDueno ? (
+                                        {row.soyDueno ? (
                                             <PillButton size="sm" title="Corregir" onPress={() => {}} />
                                         ) : (
                                             <PillButton size="sm" variant="danger" title="Notificar error" onPress={() => {}} />
@@ -74,10 +98,12 @@ export default function PatenteShowScreen() {
                                     </View>
                                 </View>
                             ))}
+                            {historial.length === 0 && (
+                                <Text style={{ padding: 20, textAlign: 'center', color: '#666' }}>No hay registros en este periodo.</Text>
+                            )}
                         </View>
                     </ScrollView>
                 )}
-
             </ScrollView>
         </SafeAreaView>
     );
@@ -86,21 +112,17 @@ export default function PatenteShowScreen() {
 const styles = StyleSheet.create({
     headerCard: { backgroundColor: '#fff', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#ddd', marginBottom: 20 },
     title: { fontSize: 22, fontWeight: '700', marginBottom: 8 },
-    status: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
     meta: { fontSize: 14, color: '#666' },
-
     tabs: { flexDirection: 'row', backgroundColor: '#e9ecef', borderRadius: 8, padding: 4, marginBottom: 16 },
     tabBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 6 },
-    tabBtnActive: { backgroundColor: '#fff', elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } },
+    tabBtnActive: { backgroundColor: '#fff', elevation: 2 },
     tabText: { fontWeight: '600', color: '#6c757d' },
     tabTextActive: { color: '#212529' },
-
     tableContainer: { backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#ddd' },
     tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderColor: '#eee' },
     tableHeader: { backgroundColor: '#f8f9fa' },
     cell: { padding: 12, fontSize: 14, color: '#333' },
     cellHeader: { fontWeight: '700', color: '#111' },
-
     placeholderBox: { backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#ddd', padding: 40, alignItems: 'center' },
     placeholderText: { color: '#888', fontStyle: 'italic' }
 });

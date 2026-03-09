@@ -4,7 +4,7 @@ import { View, Text } from 'react-native';
 export default function NotificacionesPlaceholder() {
     return (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <Text>Vista de Notificaciones (En construcción)</Text>
+            <Text>Vista de Notificaciones (placeholder)</Text>
         </View>
     );
 }
