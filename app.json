@@ -27,10 +27,6 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      "@react-native-firebase/app",
-      "@notifee/react-native"
-    ]
+    }
   }
 }
