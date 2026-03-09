@@ -22,7 +22,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.joigs.checkeocamioneta",
+      "package": "com.joigs.checkcamioneta",
       "googleServicesFile": "./google-services.json"
     },
     "web": {
