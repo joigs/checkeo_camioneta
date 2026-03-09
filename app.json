@@ -27,6 +27,19 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "@react-native-firebase/app",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraMavenRepos": [
+              "$rootDir/../node_modules/@notifee/react-native/android/libs"
+            ]
+          }
+        }
+      ]
+    ]
   }
 }
