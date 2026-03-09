@@ -1,15 +1,17 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, FlatList, TextInput, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import PillButton from '../components/PillButton';
+import { getJson } from '../api/http';
 
 type CheckeoRow = {
     id: number;
-    patente_codigo: string;
-    fecha: string;
+    check_patente_id: number;
+    fecha_chequeo: string;
     completado: boolean;
-    inspectores: string[];
+    check_usuarios: { nombre: string }[];
 };
 
 export default function TodosCheckeosScreen() {
@@ -20,24 +22,44 @@ export default function TodosCheckeosScreen() {
     const qNorm = useMemo(() => query.toLowerCase().trim(), [query]);
     const filteredRows = useMemo(() => {
         if (!qNorm) return rows;
-        return rows.filter(r => r.patente_codigo.toLowerCase().includes(qNorm));
+        return rows.filter(r => String(r.check_patente_id).includes(qNorm));
     }, [rows, qNorm]);
 
-    const renderItem = ({ item }: { item: CheckeoRow }) => (
-        <View style={styles.card}>
-            <View style={{ flex: 1, paddingRight: 12 }}>
-                <Text style={styles.title}>{item.patente_codigo}</Text>
-                <Text style={styles.meta}>Fecha: {item.fecha}</Text>
-                <Text style={styles.meta}>Inspectores: {item.inspectores?.join(', ')}</Text>
-                <Text style={[styles.meta, { color: item.completado ? 'green' : 'orange' }]}>
-                    {item.completado ? 'Completado' : 'Pendiente'}
-                </Text>
-            </View>
-            <View style={{ width: 100, gap: 6 }}>
-                <PillButton title="Ver" onPress={() => nav.navigate('CheckeoForm', { checkeoId: item.id })} />
-            </View>
-        </View>
+    const cargarCheckeos = async () => {
+        try {
+            const userId = await AsyncStorage.getItem("usuario_id");
+            if (!userId) return;
+            const data = await getJson<CheckeoRow[]>("camioneta/api/v1/checkeos", userId);
+            setRows(data);
+        } catch (e) {
+            console.log("Error cargando todos los checkeos", e);
+        }
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            cargarCheckeos();
+        }, [])
     );
+
+    const renderItem = ({ item }: { item: CheckeoRow }) => {
+        const inspectores = item.check_usuarios?.map(u => u.nombre).join(', ') || 'Sin inspectores';
+        return (
+            <View style={styles.card}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={styles.title}>Patente ID: {item.check_patente_id}</Text>
+                    <Text style={styles.meta}>Fecha: {item.fecha_chequeo}</Text>
+                    <Text style={styles.meta}>Inspectores: {inspectores}</Text>
+                    <Text style={[styles.meta, { color: item.completado ? 'green' : 'orange' }]}>
+                        {item.completado ? 'Completado' : 'Pendiente'}
+                    </Text>
+                </View>
+                <View style={{ width: 100, gap: 6 }}>
+                    <PillButton title="Ver" onPress={() => nav.navigate('CheckeoForm', { checkeoId: item.id })} />
+                </View>
+            </View>
+        );
+    };
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }} edges={['bottom']}>
@@ -46,8 +68,9 @@ export default function TodosCheckeosScreen() {
                 <TextInput
                     value={query}
                     onChangeText={setQuery}
-                    placeholder="Buscar patente..."
+                    placeholder="Buscar por ID de patente..."
                     style={styles.searchInput}
+                    keyboardType="numeric"
                 />
             </View>
             <FlatList

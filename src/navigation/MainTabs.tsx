@@ -1,9 +1,10 @@
 import React from "react";
-import { Platform, TouchableOpacity, Text, Alert } from "react-native";
+import { Platform, TouchableOpacity, Alert } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import MisCheckeosScreen from "../screens/MisCheckeosScreen";
 import TodosCheckeosScreen from "../screens/TodosCheckeosScreen";
@@ -21,6 +22,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export default function MainTabs() {
     const nav = useNavigation<any>();
+    const insets = useSafeAreaInsets();
 
     const handleLogout = async () => {
         try {
@@ -45,8 +47,11 @@ export default function MainTabs() {
                 headerRight: headerRight,
                 tabBarActiveTintColor: "#0A84FF",
                 tabBarInactiveTintColor: "#8e8e93",
-                tabBarLabelStyle: { fontSize: 12, marginBottom: Platform.OS === "android" ? 4 : 0 },
-                tabBarStyle: { height: Platform.OS === "android" ? 60 : 85, paddingBottom: Platform.OS === "android" ? 8 : 25 },
+                tabBarLabelStyle: { fontSize: 12, marginBottom: 4 },
+                tabBarStyle: {
+                    height: 60 + insets.bottom,
+                    paddingBottom: insets.bottom || 8
+                },
                 tabBarIcon: ({ color, size }) => {
                     let iconName = "ellipse-outline";
 
