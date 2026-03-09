@@ -34,8 +34,7 @@ export default function LoginScreen({ navigation }: Props) {
             const rutNorm = buildRutNormalized(digits);
             if (!rutNorm.includes("-")) throw new Error("RUT incompleto");
 
-            const resp = await postJson<any>("camioneta/api/v1/login", { rut: rutNorm });
-
+            const resp = await postJson<any>("login", { rut: rutNorm });
             if (resp.success) {
                 await AsyncStorage.setItem("usuario_id", String(resp.usuario.id));
                 await AsyncStorage.setItem("usuario_nombre", resp.usuario.nombre);
