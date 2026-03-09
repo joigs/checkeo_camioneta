@@ -1,4 +1,4 @@
-const BASE = "http://192.168.100.153:3002/ventas/pausa/api/v1";
+const BASE = "http://192.168.100.153:3002/ventas/camioneta/api/v1";
 
 export type LoginResp = { token: string; admin: boolean; creado: boolean };
 export type Me = { id: number; nombre: string; rut: string; admin: boolean };
