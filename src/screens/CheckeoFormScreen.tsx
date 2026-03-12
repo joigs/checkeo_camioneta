@@ -1,6 +1,11 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, useWindowDimensions, TextInput, Switch, KeyboardAvoidingView, Platform } from 'react-native';
+import { useRoute } from '@react-navigation/native';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createConsumer, Consumer, Subscription } from '@rails/actioncable';
 import PillButton from '../components/PillButton';
+import { getJson } from '../api/http';
+import { niceAlert } from '../components/NiceAlert';
 
 const BOLEANOS = [
     { key: 'botiquin', label: 'Botiquín' },
@@ -36,14 +41,61 @@ const BOTIQUIN_CANTIDADES = [
 ];
 
 export default function CheckeoFormScreen() {
+    const route = useRoute<any>();
+    const { checkeoId } = route.params || {};
     const { height } = useWindowDimensions();
     const scrollRef = useRef<ScrollView>(null);
     const itemY = useRef<Record<string, number>>({});
 
-    const [valores, setValores] = useState<Record<string, any>>({
-        extintor: 0,
-        kit_derrame: 0,
-    });
+    const [valores, setValores] = useState<Record<string, any>>({});
+    const userIdRef = useRef<string>('');
+    const consumerRef = useRef<Consumer | null>(null);
+    const subscriptionRef = useRef<Subscription | null>(null);
+
+    const cargarDatosIniciales = useCallback(async (currentUserId: string) => {
+        try {
+            const data = await getJson<any>(`checkeos/${checkeoId}`, currentUserId);
+            setValores(data);
+        } catch (e) {
+            niceAlert("Error", "No se pudo cargar el chequeo");
+        }
+    }, [checkeoId]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const init = async () => {
+            const currentUserId = await AsyncStorage.getItem("usuario_id");
+            if (!currentUserId || !checkeoId) return;
+
+            userIdRef.current = currentUserId;
+            await cargarDatosIniciales(currentUserId);
+
+            const wsUrl = `wss://ventas.chcert.cl/cable?usuario_id=${currentUserId}`;
+            const consumer = createConsumer(wsUrl);
+            consumerRef.current = consumer;
+
+            const sub = consumer.subscriptions.create(
+                { channel: 'Camioneta::CheckeoChannel', checkeo_id: checkeoId },
+                {
+                    received(data: any) {
+                        if (isMounted && String(data.usuario_id) !== String(userIdRef.current)) {
+                            setValores(prev => ({ ...prev, [data.campo]: data.valor }));
+                        }
+                    }
+                }
+            );
+            subscriptionRef.current = sub;
+        };
+
+        init();
+
+        return () => {
+            isMounted = false;
+            subscriptionRef.current?.unsubscribe();
+            consumerRef.current?.disconnect();
+        };
+    }, [checkeoId, cargarDatosIniciales]);
 
     const handleFocus = (key: string) => {
         const absoluteY = itemY.current[key] || 0;
@@ -53,6 +105,14 @@ export default function CheckeoFormScreen() {
 
     const updateVal = (key: string, val: any) => {
         setValores(prev => ({ ...prev, [key]: val }));
+
+        if (subscriptionRef.current) {
+            subscriptionRef.current.perform('actualizar_campo', {
+                campo: key,
+                valor: val,
+                usuario_id: userIdRef.current
+            });
+        }
     };
 
     return (
@@ -71,19 +131,19 @@ export default function CheckeoFormScreen() {
                     <View style={styles.row}>
                         <Text style={styles.label}>Extintor</Text>
                         <View style={styles.pillGroup}>
-                            <PillButton size="sm" title="Sí" variant={valores.extintor === 0 ? 'primary' : 'outline'} onPress={() => updateVal('extintor', 0)} />
-                            <PillButton size="sm" title="No" variant={valores.extintor === 1 ? 'primary' : 'outline'} onPress={() => updateVal('extintor', 1)} />
-                            <PillButton size="sm" title="Vencido" variant={valores.extintor === 2 ? 'primary' : 'outline'} onPress={() => updateVal('extintor', 2)} />
+                            <PillButton size="sm" title="Sí" variant={valores.extintor === 'extintor_si' || valores.extintor === 0 ? 'primary' : 'outline'} onPress={() => updateVal('extintor', 0)} />
+                            <PillButton size="sm" title="No" variant={valores.extintor === 'extintor_no' || valores.extintor === 1 ? 'primary' : 'outline'} onPress={() => updateVal('extintor', 1)} />
+                            <PillButton size="sm" title="Vencido" variant={valores.extintor === 'extintor_vencido' || valores.extintor === 2 ? 'primary' : 'outline'} onPress={() => updateVal('extintor', 2)} />
                         </View>
                     </View>
 
                     <View style={styles.row}>
                         <Text style={styles.label}>Kit de Derrame</Text>
                         <View style={styles.pillGroup}>
-                            <PillButton size="sm" title="Sí" variant={valores.kit_derrame === 0 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 0)} />
-                            <PillButton size="sm" title="No" variant={valores.kit_derrame === 1 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 1)} />
-                            <PillButton size="sm" title="Sin Pala" variant={valores.kit_derrame === 2 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 2)} />
-                            <PillButton size="sm" title="Sin Bolsa" variant={valores.kit_derrame === 3 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 3)} />
+                            <PillButton size="sm" title="Sí" variant={valores.kit_derrame === 'kit_si' || valores.kit_derrame === 0 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 0)} />
+                            <PillButton size="sm" title="No" variant={valores.kit_derrame === 'kit_no' || valores.kit_derrame === 1 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 1)} />
+                            <PillButton size="sm" title="Sin Pala" variant={valores.kit_derrame === 'kit_falta_pala' || valores.kit_derrame === 2 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 2)} />
+                            <PillButton size="sm" title="Sin Bolsa" variant={valores.kit_derrame === 'kit_falta_bolsa' || valores.kit_derrame === 3 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 3)} />
                         </View>
                     </View>
 
