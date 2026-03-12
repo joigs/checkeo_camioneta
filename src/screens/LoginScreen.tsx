@@ -29,12 +29,18 @@ export default function LoginScreen({ navigation }: Props) {
     const ready = digits.length >= 7;
 
     const onLogin = async () => {
+        const rutNorm = buildRutNormalized(digits);
+
+        if (!rutNorm.includes("-") || digits.length < 7) {
+            niceAlert("Error", "RUT inválido");
+            return;
+        }
+
         try {
             setLoading(true);
-            const rutNorm = buildRutNormalized(digits);
-            if (!rutNorm.includes("-")) throw new Error("RUT incompleto");
 
             const resp = await postJson<any>("login", { rut: rutNorm });
+
             if (resp.success) {
                 await AsyncStorage.setItem("usuario_id", String(resp.usuario.id));
                 await AsyncStorage.setItem("usuario_nombre", resp.usuario.nombre);
@@ -43,7 +49,16 @@ export default function LoginScreen({ navigation }: Props) {
                 niceAlert("Error", "Usuario no encontrado");
             }
         } catch (e: any) {
-            niceAlert("Error", "RUT inválido o problema de conexión.");
+            if (
+                e instanceof TypeError ||
+                e?.message?.includes("Network") ||
+                e?.message?.includes("network") ||
+                e?.message?.includes("fetch")
+            ) {
+                niceAlert("Error", "Problema de conexión.");
+            } else {
+                niceAlert("Error", "Ocurrió un error inesperado.");
+            }
         } finally {
             setLoading(false);
         }
