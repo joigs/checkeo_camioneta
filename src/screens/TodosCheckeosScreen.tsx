@@ -9,7 +9,6 @@ import { niceAlert } from '../components/NiceAlert';
 
 type CheckeoRow = {
     id: number;
-    check_patente_id: number;
     check_patente?: { codigo: string };
     fecha_chequeo: string;
     completado: boolean;
@@ -24,7 +23,7 @@ export default function TodosCheckeosScreen() {
     const qNorm = useMemo(() => query.toLowerCase().trim(), [query]);
     const filteredRows = useMemo(() => {
         if (!qNorm) return rows;
-        return rows.filter(r => String(r.check_patente_id).includes(qNorm));
+        return rows.filter(r => (r.check_patente?.codigo || '').toLowerCase().includes(qNorm));
     }, [rows, qNorm]);
 
     const cargarCheckeos = async () => {
@@ -34,7 +33,7 @@ export default function TodosCheckeosScreen() {
             const data = await getJson<CheckeoRow[]>("checkeos", userId);
             setRows(data);
         } catch (e) {
-            niceAlert("Error", "No se pudieron cargar los chequeos");
+            niceAlert("Error", "No se pudieron cargar las inspecciones");
         }
     };
 
@@ -44,14 +43,16 @@ export default function TodosCheckeosScreen() {
         }, [])
     );
 
+    const formatFecha = (f: string) => f ? f.split('-').reverse().join('/') : '';
+
     const renderItem = ({ item }: { item: CheckeoRow }) => {
         const inspectores = item.check_usuarios?.map(u => u.nombre).join(', ') || 'Sin asignar';
 
         return (
             <View style={styles.card}>
                 <View style={{ flex: 1, paddingRight: 12 }}>
-                    <Text style={styles.title}>Patente: {item.check_patente?.codigo || item.check_patente_id}</Text>
-                    <Text style={styles.meta}>Fecha: {item.fecha_chequeo}</Text>
+                    <Text style={styles.title}>Patente: {item.check_patente?.codigo || 'Sin código'}</Text>
+                    <Text style={styles.meta}>Fecha: {formatFecha(item.fecha_chequeo)}</Text>
                     <Text style={styles.meta}>Inspectores: {inspectores}</Text>
                     <Text style={[styles.meta, { color: item.completado ? 'green' : 'orange' }]}>
                         {item.completado ? 'Completado' : 'Pendiente'}
@@ -71,9 +72,9 @@ export default function TodosCheckeosScreen() {
                 <TextInput
                     value={query}
                     onChangeText={setQuery}
-                    placeholder="Buscar por ID de patente..."
+                    placeholder="Buscar patente..."
                     style={styles.searchInput}
-                    keyboardType="numeric"
+                    autoCapitalize="characters"
                 />
             </View>
             <FlatList

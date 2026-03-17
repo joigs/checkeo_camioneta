@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform, TouchableOpacity, Alert } from "react-native";
+import { Platform, TouchableOpacity, Alert, Text } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -9,7 +9,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MisCheckeosScreen from "../screens/MisCheckeosScreen";
 import TodosCheckeosScreen from "../screens/TodosCheckeosScreen";
 import PatentesScreen from "../screens/PatentesScreen";
-import NotificacionesPlaceholder from "../screens/NotificacionesPlaceholder";
+import NotificacionesScreen from "../screens/NotificacionesScreen";
+import { niceAlert } from "../components/NiceAlert";
 
 export type MainTabParamList = {
     MisCheckeos: undefined;
@@ -24,18 +25,26 @@ export default function MainTabs() {
     const nav = useNavigation<any>();
     const insets = useSafeAreaInsets();
 
-    const handleLogout = async () => {
-        try {
-            await AsyncStorage.multiRemove(["usuario_id", "usuario_nombre"]);
-            nav.reset({ index: 0, routes: [{ name: "Login" }] });
-        } catch (e) {
-            Alert.alert("Error", "No se pudo cerrar sesión");
-        }
+    const handleLogout = () => {
+        niceAlert(
+            "Cerrar Sesión",
+            "¿Estás seguro de que deseas cerrar sesión?",
+            "Cerrar Sesión",
+            async () => {
+                try {
+                    await AsyncStorage.multiRemove(["usuario_id", "usuario_nombre"]);
+                    nav.reset({ index: 0, routes: [{ name: "Login" }] });
+                } catch (e) {
+                    Alert.alert("Error", "No se pudo cerrar sesión");
+                }
+            },
+            "Cancelar"
+        );
     };
 
     const headerRight = () => (
-        <TouchableOpacity onPress={handleLogout} style={{ paddingHorizontal: 16 }}>
-            <Ionicons name="log-out-outline" size={24} color="#0A84FF" />
+        <TouchableOpacity onPress={handleLogout} style={{ paddingHorizontal: 16, paddingVertical: 6 }}>
+            <Text style={{ color: "#0A84FF", fontWeight: "600", fontSize: 16 }}>Cerrar sesión</Text>
         </TouchableOpacity>
     );
 
@@ -81,7 +90,7 @@ export default function MainTabs() {
             />
             <Tab.Screen
                 name="Notificaciones"
-                component={NotificacionesPlaceholder}
+                component={NotificacionesScreen}
                 options={{ title: "Notificaciones", headerTitle: "Notificaciones" }}
             />
         </Tab.Navigator>

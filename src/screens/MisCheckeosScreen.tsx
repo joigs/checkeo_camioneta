@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, FlatList, TextInput, StyleSheet, Modal } from 'react-native';
+import { View, Text, FlatList, TextInput, StyleSheet, Modal, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -9,7 +9,6 @@ import { niceAlert } from '../components/NiceAlert';
 
 type CheckeoRow = {
     id: number;
-    check_patente_id: number;
     check_patente?: { codigo: string };
     fecha_chequeo: string;
     completado: boolean;
@@ -29,7 +28,7 @@ export default function MisCheckeosScreen() {
     const qNorm = useMemo(() => query.toLowerCase().trim(), [query]);
     const filteredRows = useMemo(() => {
         if (!qNorm) return rows;
-        return rows.filter(r => String(r.check_patente_id).includes(qNorm));
+        return rows.filter(r => (r.check_patente?.codigo || '').toLowerCase().includes(qNorm));
     }, [rows, qNorm]);
 
     const cargarCheckeos = async () => {
@@ -40,7 +39,7 @@ export default function MisCheckeosScreen() {
             const misCheckeos = data.filter(c => c.check_usuarios?.some(u => String(u.id) === userId));
             setRows(misCheckeos);
         } catch (e) {
-            niceAlert("Error", "No se pudieron cargar los chequeos");
+            niceAlert("Error", "No se pudieron cargar las inspecciones");
         }
     };
 
@@ -88,11 +87,13 @@ export default function MisCheckeosScreen() {
         }
     };
 
+    const formatFecha = (f: string) => f ? f.split('-').reverse().join('/') : '';
+
     const renderItem = ({ item }: { item: CheckeoRow }) => (
         <View style={styles.card}>
             <View style={{ flex: 1, paddingRight: 12 }}>
-                <Text style={styles.title}>Patente: {item.check_patente?.codigo || item.check_patente_id}</Text>
-                <Text style={styles.meta}>Fecha: {item.fecha_chequeo}</Text>
+                <Text style={styles.title}>Patente: {item.check_patente?.codigo || 'Sin código'}</Text>
+                <Text style={styles.meta}>Fecha: {formatFecha(item.fecha_chequeo)}</Text>
                 <Text style={[styles.meta, { color: item.completado ? 'green' : 'orange' }]}>
                     {item.completado ? 'Completado' : 'Pendiente'}
                 </Text>
@@ -110,8 +111,9 @@ export default function MisCheckeosScreen() {
                 <TextInput
                     value={query}
                     onChangeText={setQuery}
-                    placeholder="Buscar..."
+                    placeholder="Buscar patente..."
                     style={styles.searchInput}
+                    autoCapitalize="characters"
                 />
             </View>
 
@@ -123,13 +125,13 @@ export default function MisCheckeosScreen() {
             />
 
             <View style={styles.footer}>
-                <PillButton title="Crear Nuevo Chequeo" onPress={() => setModalVisible(true)} />
+                <PillButton title="Crear Nueva Inspección" onPress={() => setModalVisible(true)} />
             </View>
 
-            <Modal visible={modalVisible} animationType="slide" transparent={true}>
-                <View style={styles.modalBackdrop}>
-                    <View style={styles.modalBox}>
-                        <Text style={styles.modalTitle}>Nuevo Chequeo</Text>
+            <Modal visible={modalVisible} animationType="slide" transparent={true} onRequestClose={() => setModalVisible(false)}>
+                <Pressable style={styles.modalBackdrop} onPress={() => setModalVisible(false)}>
+                    <Pressable style={styles.modalBox} onPress={(e) => e.stopPropagation()}>
+                        <Text style={styles.modalTitle}>Nueva Inspección</Text>
 
                         <Text style={styles.label}>Código Patente</Text>
                         <TextInput
@@ -153,8 +155,8 @@ export default function MisCheckeosScreen() {
                             <PillButton title="Cancelar" variant="outline" onPress={() => setModalVisible(false)} disabled={creando} />
                             <PillButton title={creando ? "Creando..." : "Guardar"} onPress={handleCrear} disabled={creando} />
                         </View>
-                    </View>
-                </View>
+                    </Pressable>
+                </Pressable>
             </Modal>
         </SafeAreaView>
     );

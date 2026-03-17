@@ -1,10 +1,9 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, useWindowDimensions, TextInput, Switch, KeyboardAvoidingView, Platform } from 'react-native';
-import { useRoute } from '@react-navigation/native';
+import { View, Text, ScrollView, StyleSheet, useWindowDimensions, TextInput, Switch, KeyboardAvoidingView, Platform, Modal, Pressable } from 'react-native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createConsumer, Consumer, Subscription } from '@rails/actioncable';
 import PillButton from '../components/PillButton';
-import { getJson } from '../api/http';
+import { getJson, putJson, postJson } from '../api/http';
 import { niceAlert } from '../components/NiceAlert';
 
 const BOLEANOS = [
@@ -42,76 +41,116 @@ const BOTIQUIN_CANTIDADES = [
 
 export default function CheckeoFormScreen() {
     const route = useRoute<any>();
+    const nav = useNavigation<any>();
     const { checkeoId } = route.params || {};
     const { height } = useWindowDimensions();
     const scrollRef = useRef<ScrollView>(null);
     const itemY = useRef<Record<string, number>>({});
 
     const [valores, setValores] = useState<Record<string, any>>({});
-    const userIdRef = useRef<string>('');
-    const consumerRef = useRef<Consumer | null>(null);
-    const subscriptionRef = useRef<Subscription | null>(null);
+    const [esDueno, setEsDueno] = useState(false);
+    const [estadoEliminacionPropio, setEstadoEliminacionPropio] = useState(0);
+    const [patente, setPatente] = useState('');
+    const [guardando, setGuardando] = useState(false);
 
-    const cargarDatosIniciales = useCallback(async (currentUserId: string) => {
+    const [modalReporte, setModalReporte] = useState(false);
+    const [mensajeReporte, setMensajeReporte] = useState('');
+
+    const cargarDatosIniciales = useCallback(async () => {
         try {
+            const currentUserId = await AsyncStorage.getItem("usuario_id");
+            if (!currentUserId || !checkeoId) return;
+
             const data = await getJson<any>(`checkeos/${checkeoId}`, currentUserId);
             setValores(data);
+            setPatente(data.check_patente?.codigo || '');
+            setEstadoEliminacionPropio(data.estado_eliminacion_propio || 0);
+
+            const dueno = data.check_usuarios?.some((u: any) => String(u.id) === currentUserId);
+            setEsDueno(dueno);
         } catch (e) {
-            niceAlert("Error", "No se pudo cargar el chequeo");
+            niceAlert("Error", "No se pudo cargar la inspección");
         }
     }, [checkeoId]);
 
     useEffect(() => {
-        let isMounted = true;
-
-        const init = async () => {
-            const currentUserId = await AsyncStorage.getItem("usuario_id");
-            if (!currentUserId || !checkeoId) return;
-
-            userIdRef.current = currentUserId;
-            await cargarDatosIniciales(currentUserId);
-
-            const wsUrl = `wss://ventas.chcert.cl/cable?usuario_id=${currentUserId}`;
-            const consumer = createConsumer(wsUrl);
-            consumerRef.current = consumer;
-
-            const sub = consumer.subscriptions.create(
-                { channel: 'Camioneta::CheckeoChannel', checkeo_id: checkeoId },
-                {
-                    received(data: any) {
-                        if (isMounted && String(data.usuario_id) !== String(userIdRef.current)) {
-                            setValores(prev => ({ ...prev, [data.campo]: data.valor }));
-                        }
-                    }
-                }
-            );
-            subscriptionRef.current = sub;
-        };
-
-        init();
-
-        return () => {
-            isMounted = false;
-            subscriptionRef.current?.unsubscribe();
-            consumerRef.current?.disconnect();
-        };
-    }, [checkeoId, cargarDatosIniciales]);
+        cargarDatosIniciales();
+    }, [cargarDatosIniciales]);
 
     const handleFocus = (key: string) => {
+        if (!esDueno) return;
         const absoluteY = itemY.current[key] || 0;
         const targetY = Math.max(0, absoluteY - height * 0.25);
         scrollRef.current?.scrollTo({ y: targetY, animated: true });
     };
 
     const updateVal = (key: string, val: any) => {
+        if (!esDueno) return;
         setValores(prev => ({ ...prev, [key]: val }));
+    };
 
-        if (subscriptionRef.current) {
-            subscriptionRef.current.perform('actualizar_campo', {
-                campo: key,
-                valor: val,
-                usuario_id: userIdRef.current
-            });
+    const guardarCambios = async () => {
+        setGuardando(true);
+        try {
+            const currentUserId = await AsyncStorage.getItem("usuario_id");
+            await putJson(`checkeos/${checkeoId}`, { checkeo: valores }, { Authorization: `Bearer ${currentUserId}` });
+            niceAlert("Éxito", "Inspección guardada correctamente");
+            nav.goBack();
+        } catch (e) {
+            niceAlert("Error", "No se pudo guardar");
+        } finally {
+            setGuardando(false);
+        }
+    };
+
+    const confirmarEliminacion = () => {
+        niceAlert(
+            "Eliminar Inspección",
+            "¿Estás seguro de que quieres solicitar la eliminación de esta inspección? Se notificará a los demás inspectores para su aprobación.",
+            "Sí, Eliminar",
+            async () => {
+                try {
+                    const currentUserId = await AsyncStorage.getItem("usuario_id");
+                    await postJson(`checkeos/${checkeoId}/solicitar_eliminacion`, {}, { Authorization: `Bearer ${currentUserId}` });
+                    setEstadoEliminacionPropio(1);
+                    niceAlert("Solicitud enviada", "Se ha notificado a los demás inspectores.");
+                } catch (e) {
+                    niceAlert("Error", "No se pudo enviar la solicitud");
+                }
+            },
+            "Cancelar"
+        );
+    };
+
+    const cancelarEliminacion = () => {
+        niceAlert(
+            "Cancelar Eliminación",
+            "¿Deseas cancelar tu solicitud de eliminación para esta inspección?",
+            "Sí, Cancelar",
+            async () => {
+                try {
+                    const currentUserId = await AsyncStorage.getItem("usuario_id");
+                    await postJson(`checkeos/${checkeoId}/cancelar_eliminacion`, {}, { Authorization: `Bearer ${currentUserId}` });
+                    setEstadoEliminacionPropio(0);
+                    niceAlert("Cancelado", "Tu solicitud de eliminación ha sido cancelada.");
+                } catch (e) {
+                    niceAlert("Error", "No se pudo cancelar la solicitud");
+                }
+            },
+            "Cerrar"
+        );
+    };
+
+    const enviarReporte = async () => {
+        if (!mensajeReporte.trim()) return;
+        try {
+            const currentUserId = await AsyncStorage.getItem("usuario_id");
+            await postJson(`checkeos/${checkeoId}/reportar_error`, { mensaje: mensajeReporte }, { Authorization: `Bearer ${currentUserId}` });
+            setModalReporte(false);
+            setMensajeReporte('');
+            niceAlert("Enviado", "Reporte enviado a los inspectores.");
+        } catch (e) {
+            niceAlert("Error", "No se pudo enviar el reporte");
         }
     };
 
@@ -123,7 +162,13 @@ export default function CheckeoFormScreen() {
                 contentContainerStyle={{ padding: 12, paddingBottom: 100 }}
                 keyboardShouldPersistTaps="handled"
             >
-                <Text style={styles.header}>Inspección de Camioneta</Text>
+                {!esDueno && (
+                    <View style={styles.statusBadge}>
+                        <Text style={styles.statusText}>Modo Solo Lectura</Text>
+                    </View>
+                )}
+
+                <Text style={styles.header}>Inspección: {patente}</Text>
 
                 <View style={styles.block}>
                     <Text style={styles.sectionTitle}>Estado General</Text>
@@ -131,19 +176,19 @@ export default function CheckeoFormScreen() {
                     <View style={styles.row}>
                         <Text style={styles.label}>Extintor</Text>
                         <View style={styles.pillGroup}>
-                            <PillButton size="sm" title="Sí" variant={valores.extintor === 'extintor_si' || valores.extintor === 0 ? 'primary' : 'outline'} onPress={() => updateVal('extintor', 0)} />
-                            <PillButton size="sm" title="No" variant={valores.extintor === 'extintor_no' || valores.extintor === 1 ? 'primary' : 'outline'} onPress={() => updateVal('extintor', 1)} />
-                            <PillButton size="sm" title="Vencido" variant={valores.extintor === 'extintor_vencido' || valores.extintor === 2 ? 'primary' : 'outline'} onPress={() => updateVal('extintor', 2)} />
+                            <PillButton size="sm" title="Sí" disabled={!esDueno} variant={valores.extintor === 'extintor_si' || valores.extintor === 0 ? 'primary' : 'outline'} onPress={() => updateVal('extintor', 0)} />
+                            <PillButton size="sm" title="No" disabled={!esDueno} variant={valores.extintor === 'extintor_no' || valores.extintor === 1 ? 'primary' : 'outline'} onPress={() => updateVal('extintor', 1)} />
+                            <PillButton size="sm" title="Vencido" disabled={!esDueno} variant={valores.extintor === 'extintor_vencido' || valores.extintor === 2 ? 'primary' : 'outline'} onPress={() => updateVal('extintor', 2)} />
                         </View>
                     </View>
 
                     <View style={styles.row}>
                         <Text style={styles.label}>Kit de Derrame</Text>
                         <View style={styles.pillGroup}>
-                            <PillButton size="sm" title="Sí" variant={valores.kit_derrame === 'kit_si' || valores.kit_derrame === 0 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 0)} />
-                            <PillButton size="sm" title="No" variant={valores.kit_derrame === 'kit_no' || valores.kit_derrame === 1 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 1)} />
-                            <PillButton size="sm" title="Sin Pala" variant={valores.kit_derrame === 'kit_falta_pala' || valores.kit_derrame === 2 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 2)} />
-                            <PillButton size="sm" title="Sin Bolsa" variant={valores.kit_derrame === 'kit_falta_bolsa' || valores.kit_derrame === 3 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 3)} />
+                            <PillButton size="sm" title="Sí" disabled={!esDueno} variant={valores.kit_derrame === 'kit_si' || valores.kit_derrame === 0 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 0)} />
+                            <PillButton size="sm" title="No" disabled={!esDueno} variant={valores.kit_derrame === 'kit_no' || valores.kit_derrame === 1 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 1)} />
+                            <PillButton size="sm" title="Sin Pala" disabled={!esDueno} variant={valores.kit_derrame === 'kit_falta_pala' || valores.kit_derrame === 2 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 2)} />
+                            <PillButton size="sm" title="Sin Bolsa" disabled={!esDueno} variant={valores.kit_derrame === 'kit_falta_bolsa' || valores.kit_derrame === 3 ? 'primary' : 'outline'} onPress={() => updateVal('kit_derrame', 3)} />
                         </View>
                     </View>
 
@@ -151,6 +196,7 @@ export default function CheckeoFormScreen() {
                         <View key={campo.key} style={styles.switchRow}>
                             <Text style={styles.label}>{campo.label}</Text>
                             <Switch
+                                disabled={!esDueno}
                                 value={!!valores[campo.key]}
                                 onValueChange={(val) => updateVal(campo.key, val)}
                             />
@@ -159,7 +205,7 @@ export default function CheckeoFormScreen() {
                 </View>
 
                 <View style={styles.block}>
-                    <Text style={styles.sectionTitle}>Elementos del Botiquín (Cantidades)</Text>
+                    <Text style={styles.sectionTitle}>Elementos del Botiquín</Text>
                     {BOTIQUIN_CANTIDADES.map((campo) => (
                         <View
                             key={campo.key}
@@ -169,24 +215,60 @@ export default function CheckeoFormScreen() {
                             <Text style={styles.label}>{campo.label} (Req: {campo.req})</Text>
                             <View style={styles.inputContainer}>
                                 <TextInput
+                                    editable={esDueno}
                                     value={valores[campo.key]?.toString() || ''}
                                     onChangeText={txt => updateVal(campo.key, txt.replace(/[^0-9]/g, ''))}
                                     onFocus={() => handleFocus(campo.key)}
                                     keyboardType="numeric"
                                     placeholder="0"
-                                    style={styles.input}
+                                    style={[styles.input, !esDueno && styles.inputDisabled]}
                                 />
                                 <Text style={styles.suffix}>/ {campo.req}</Text>
                             </View>
                         </View>
                     ))}
                 </View>
+
+                {esDueno && (
+                    <View style={styles.footerActions}>
+                        <PillButton title={guardando ? "Guardando..." : "Guardar Cambios"} onPress={guardarCambios} disabled={guardando} />
+                        {estadoEliminacionPropio === 1 ? (
+                            <PillButton title="Cancelar Eliminación" variant="outline" onPress={cancelarEliminacion} />
+                        ) : (
+                            <PillButton title="Eliminar Inspección" variant="danger" onPress={confirmarEliminacion} />
+                        )}
+                    </View>
+                )}
+
+                <View style={{ marginTop: 20, marginBottom: 40 }}>
+                    <PillButton title="Reportar Problema" variant="outline" onPress={() => setModalReporte(true)} />
+                </View>
             </ScrollView>
+            <Modal visible={modalReporte} animationType="slide" transparent={true} onRequestClose={() => setModalReporte(false)}>
+                <Pressable style={styles.modalBackdrop} onPress={() => setModalReporte(false)}>
+                    <Pressable style={styles.modalBox} onPress={(e) => e.stopPropagation()}>
+                        <Text style={styles.modalTitle}>Reportar Problema</Text>
+                        <Text style={styles.label}>Mensaje a los inspectores:</Text>
+                        <TextInput
+                            style={[styles.input, { width: '100%', height: 100, textAlignVertical: 'top', textAlign: 'left' }]}
+                            multiline
+                            value={mensajeReporte}
+                            onChangeText={setMensajeReporte}
+                        />
+                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+                            <PillButton title="Cancelar" variant="outline" onPress={() => setModalReporte(false)} />
+                            <PillButton title="Enviar" onPress={enviarReporte} />
+                        </View>
+                    </Pressable>
+                </Pressable>
+            </Modal>
         </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
+    statusBadge: { backgroundColor: '#e2e3e5', alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, marginBottom: 12 },
+    statusText: { color: '#383d41', fontSize: 12, fontWeight: '700' },
     header: { fontSize: 18, fontWeight: '700', marginBottom: 12, textAlign: 'center' },
     block: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#eee', borderRadius: 12, padding: 12, marginBottom: 16 },
     sectionTitle: { fontSize: 16, fontWeight: '700', color: '#0A84FF', marginBottom: 12, borderBottomWidth: 1, borderColor: '#eee', paddingBottom: 6 },
@@ -196,5 +278,10 @@ const styles = StyleSheet.create({
     pillGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     inputContainer: { flexDirection: 'row', alignItems: 'center' },
     input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, width: 80, textAlign: 'center' },
-    suffix: { fontSize: 16, fontWeight: '600', color: '#666', marginLeft: 8 }
+    inputDisabled: { backgroundColor: '#f1f1f1', color: '#888' },
+    suffix: { fontSize: 16, fontWeight: '600', color: '#666', marginLeft: 8 },
+    footerActions: { gap: 12, marginTop: 12 },
+    modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 20 },
+    modalBox: { backgroundColor: '#fff', padding: 20, borderRadius: 12 },
+    modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 16 }
 });

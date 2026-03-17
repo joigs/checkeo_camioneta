@@ -9,6 +9,8 @@ import { onlyDigits, formatWithDots, computeDv, buildRutNormalized } from "../ut
 import { niceAlert } from "../components/NiceAlert";
 import PillButton from "../components/PillButton";
 import { postJson } from "../api/http";
+import { registerFcmToken } from "../fcm/register";
+
 
 type RootStackParamList = { Login: undefined; Main: undefined };
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
@@ -44,6 +46,7 @@ export default function LoginScreen({ navigation }: Props) {
             if (resp.success) {
                 await AsyncStorage.setItem("usuario_id", String(resp.usuario.id));
                 await AsyncStorage.setItem("usuario_nombre", resp.usuario.nombre);
+                await registerFcmToken(String(resp.usuario.id));
                 navigation.reset({ index: 0, routes: [{ name: "Main" as never }] });
             } else {
                 niceAlert("Error", "Usuario no encontrado");

@@ -1,8 +1,9 @@
 import React, { createContext, useCallback, useContext, useState } from "react";
 import { Modal, View, Text } from "react-native";
 import PillButton from "./PillButton";
+import { Pressable} from "react-native";
 
-type ShowFn = (title: string, message: string, okText?: string, onOk?: () => void) => void;
+type ShowFn = (title: string, message: string, okText?: string, onOk?: () => void, cancelText?: string) => void;
 
 type AlertState = {
     visible: boolean;
@@ -10,6 +11,7 @@ type AlertState = {
     message?: string;
     okText?: string;
     onOk?: () => void;
+    cancelText?: string;
 };
 
 const Ctx = createContext<ShowFn | null>(null);
@@ -17,11 +19,13 @@ const Ctx = createContext<ShowFn | null>(null);
 export function NiceAlertHost({ children }: { children: React.ReactNode }) {
     const [state, setState] = useState<AlertState>({ visible: false });
 
-    const show: ShowFn = useCallback((title, message, okText = "OK", onOk) => {
-        setState({ visible: true, title, message, okText, onOk });
+    const show: ShowFn = useCallback((title, message, okText = "OK", onOk, cancelText) => {
+        setState({ visible: true, title, message, okText, onOk, cancelText });
     }, []);
 
-    const close = () => {
+    const close = () => setState({ visible: false });
+
+    const handleOk = () => {
         const cb = state.onOk;
         setState({ visible: false });
         cb?.();
@@ -31,15 +35,18 @@ export function NiceAlertHost({ children }: { children: React.ReactNode }) {
         <Ctx.Provider value={show}>
             {children}
             <Modal visible={state.visible} transparent animationType="fade" onRequestClose={close}>
-                <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.25)", justifyContent: "center", padding: 24 }}>
-                    <View style={{ backgroundColor: "#fff", borderRadius: 12, padding: 16 }}>
-                        {!!state.title && <Text style={{ fontWeight: "700", fontSize: 16, marginBottom: 6 }}>{state.title}</Text>}
-                        {!!state.message && <Text style={{ color: "#333", marginBottom: 14 }}>{state.message}</Text>}
-                        <View style={{ alignItems: "flex-end" }}>
-                            <PillButton title={state.okText || "OK"} onPress={close} />
+                <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 24 }} onPress={close}>
+                    <Pressable style={{ backgroundColor: "#fff", borderRadius: 12, padding: 20 }} onPress={(e) => e.stopPropagation()}>
+                        {!!state.title && <Text style={{ fontWeight: "700", fontSize: 18, marginBottom: 8, color: '#111' }}>{state.title}</Text>}
+                        {!!state.message && <Text style={{ color: "#444", marginBottom: 20, fontSize: 15, lineHeight: 22 }}>{state.message}</Text>}
+                        <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 12 }}>
+                            {!!state.cancelText && (
+                                <PillButton title={state.cancelText} variant="outline" onPress={close} />
+                            )}
+                            <PillButton title={state.okText || "OK"} onPress={handleOk} />
                         </View>
-                    </View>
-                </View>
+                    </Pressable>
+                </Pressable>
             </Modal>
         </Ctx.Provider>
     );
@@ -57,6 +64,6 @@ export function NiceAlertRegistrar() {
     extShow = show;
     return null;
 }
-export function niceAlert(title: string, message: string, okText?: string, onOk?: () => void) {
-    if (extShow) extShow(title, message, okText, onOk);
+export function niceAlert(title: string, message: string, okText?: string, onOk?: () => void, cancelText?: string) {
+    if (extShow) extShow(title, message, okText, onOk, cancelText);
 }

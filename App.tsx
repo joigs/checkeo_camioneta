@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, View, Alert, TouchableOpacity, Text, AppState } from "react-native";
+import { ActivityIndicator, View, AppState } from "react-native";
 import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -9,7 +9,7 @@ import LoginScreen from "./src/screens/LoginScreen";
 import MainTabs from "./src/navigation/MainTabs";
 import CheckeoFormScreen from "./src/screens/CheckeoFormScreen";
 import PatenteShowScreen from "./src/screens/PatenteShowScreen";
-
+import { initNotifications } from "./src/notifications/setup";
 import { NiceAlertHost, NiceAlertRegistrar } from "./src/components/NiceAlert";
 
 export type RootStackParamList = {
@@ -36,6 +36,10 @@ export default function App() {
     }, []);
 
     useEffect(() => {
+        initNotifications();
+    }, []);
+
+    useEffect(() => {
         const sub = AppState.addEventListener('change', (s) => {
             if (s === 'active') {
             }
@@ -59,25 +63,6 @@ export default function App() {
 
         return () => { unsubOpen(); };
     }, []);
-
-    const headerRight = () => (
-        <TouchableOpacity
-            onPress={async () => {
-                try {
-                    await AsyncStorage.multiRemove(["usuario_id", "usuario_nombre"]);
-                    setHasSession(false);
-                    if (navigationRef.isReady()) {
-                        navigationRef.reset({ index: 0, routes: [{ name: "Login" }] });
-                    }
-                } catch (e: any) {
-                    Alert.alert("Error", "No se pudo cerrar sesión");
-                }
-            }}
-            style={{ paddingHorizontal: 12, paddingVertical: 6 }}
-        >
-            <Text style={{ color: "#0A84FF", fontWeight: "600" }}>Cerrar sesión</Text>
-        </TouchableOpacity>
-    );
 
     if (!bootstrapped) {
         return (
@@ -107,7 +92,7 @@ export default function App() {
                     <Stack.Screen
                         name="Main"
                         component={MainTabs}
-                        options={{ title: "Camioneta", headerRight, headerShown: false }}
+                        options={{ headerShown: false }}
                     />
                     <Stack.Screen
                         name="CheckeoForm"
