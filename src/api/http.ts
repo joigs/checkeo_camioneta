@@ -11,7 +11,15 @@ export async function postJson<T>(path: string, body: any, headers: Record<strin
         body: JSON.stringify(body),
     });
     const text = await r.text().catch(() => "");
-    if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}: ${text}`);
+    if (!r.ok) {
+        let errorMsg = text;
+        try {
+            const parsed = JSON.parse(text);
+            if (parsed.error) errorMsg = parsed.error;
+            else if (parsed.errors) errorMsg = parsed.errors.join(", ");
+        } catch(e) {}
+        throw new Error(errorMsg || `HTTP ${r.status}`);
+    }
     return (text ? JSON.parse(text) : {}) as T;
 }
 

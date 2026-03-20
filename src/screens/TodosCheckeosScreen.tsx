@@ -12,6 +12,7 @@ type CheckeoRow = {
     check_patente?: { codigo: string };
     fecha_chequeo: string;
     completado: boolean;
+    conforme?: boolean;
     check_usuarios: any[];
 };
 
@@ -19,6 +20,7 @@ export default function TodosCheckeosScreen() {
     const nav = useNavigation<any>();
     const [rows, setRows] = useState<CheckeoRow[]>([]);
     const [query, setQuery] = useState('');
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
     const qNorm = useMemo(() => query.toLowerCase().trim(), [query]);
     const filteredRows = useMemo(() => {
@@ -29,6 +31,7 @@ export default function TodosCheckeosScreen() {
     const cargarCheckeos = async () => {
         try {
             const userId = await AsyncStorage.getItem("usuario_id");
+            setCurrentUserId(userId);
             if (!userId) return;
             const data = await getJson<CheckeoRow[]>("checkeos", userId);
             setRows(data);
@@ -47,6 +50,10 @@ export default function TodosCheckeosScreen() {
 
     const renderItem = ({ item }: { item: CheckeoRow }) => {
         const inspectores = item.check_usuarios?.map(u => u.nombre).join(', ') || 'Sin asignar';
+        const soyDueno = item.check_usuarios?.some((u: any) => String(u.id) === currentUserId);
+        const esHoy = item.fecha_chequeo === new Date().toISOString().split('T')[0];
+
+        const textoBoton = soyDueno ? (esHoy ? "Realizar" : "Corregir") : "Ver";
 
         return (
             <View style={styles.card}>
@@ -55,11 +62,12 @@ export default function TodosCheckeosScreen() {
                     <Text style={styles.meta}>Fecha: {formatFecha(item.fecha_chequeo)}</Text>
                     <Text style={styles.meta}>Inspectores: {inspectores}</Text>
                     <Text style={[styles.meta, { color: item.completado ? 'green' : 'orange' }]}>
-                        {item.completado ? 'Completado' : 'Pendiente'}
+                        {item.completado ? 'Completada' : 'Pendiente'}
+                        {item.completado ? <Text style={{ color: item.conforme ? 'green' : 'red' }}> • {item.conforme ? 'Conforme' : 'No Conforme'}</Text> : null}
                     </Text>
                 </View>
                 <View style={{ width: 100, gap: 6 }}>
-                    <PillButton title="Ver" onPress={() => nav.navigate('CheckeoForm', { checkeoId: item.id })} />
+                    <PillButton title={textoBoton} variant={soyDueno ? "primary" : "outline"} onPress={() => nav.navigate('CheckeoForm', { checkeoId: item.id })} />
                 </View>
             </View>
         );
@@ -88,12 +96,7 @@ export default function TodosCheckeosScreen() {
 }
 
 const styles = StyleSheet.create({
-    searchWrap: {
-        marginHorizontal: 12, marginTop: 12, marginBottom: 12,
-        backgroundColor: '#F2F4F7', borderWidth: 1, borderColor: '#E4E7EC',
-        borderRadius: 12, flexDirection: 'row', alignItems: 'center',
-        paddingHorizontal: 10, paddingVertical: 8,
-    },
+    searchWrap: { marginHorizontal: 12, marginTop: 12, marginBottom: 12, backgroundColor: '#F2F4F7', borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8 },
     searchIcon: { marginRight: 8, fontSize: 14 },
     searchInput: { flex: 1, fontSize: 14, color: '#111', paddingVertical: 0 },
     card: { flexDirection: 'row', padding: 12, borderBottomWidth: 1, borderColor: '#ddd', alignItems: 'center' },

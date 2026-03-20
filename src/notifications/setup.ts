@@ -24,7 +24,12 @@ export async function displayNotification(title: string, body: string) {
     });
 }
 
+export async function clearAllNotifications() {
+    await notifee.cancelAllNotifications();
+}
+
 messaging().onMessage(async remoteMessage => {
+
     if (remoteMessage.notification) {
         await displayNotification(
             remoteMessage.notification.title || 'Nueva Notificación',
@@ -34,10 +39,5 @@ messaging().onMessage(async remoteMessage => {
 });
 
 messaging().setBackgroundMessageHandler(async remoteMessage => {
-    if (remoteMessage.notification) {
-        await displayNotification(
-            remoteMessage.notification.title || 'Nueva Notificación',
-            remoteMessage.notification.body || ''
-        );
-    }
+
 });

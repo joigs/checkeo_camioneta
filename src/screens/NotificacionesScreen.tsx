@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -70,7 +70,18 @@ export default function NotificacionesScreen() {
     useFocusEffect(
         useCallback(() => {
             cargarNotificaciones();
-        }, [])
+
+            const onBackPress = () => {
+                if (categoriaSeleccionada) {
+                    setCategoriaSeleccionada(null);
+                    return true;
+                }
+                return false;
+            };
+
+            const backHandlerSubscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+            return () => backHandlerSubscription.remove();
+        }, [categoriaSeleccionada])
     );
 
     const marcarComoLeida = async (id: number, leida: boolean) => {
@@ -158,7 +169,7 @@ const styles = StyleSheet.create({
     headerBar: { backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderColor: '#eee' },
     headerBarActive: { backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderColor: '#eee' },
     backBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, width: 80 },
-    backBtnText: { color: '#0A84FF', fontSize: 16, marginLeft: 4, fontWeight: '500' },
+    backBtnText: { color: '#0A84FF', fontSize: 14, marginLeft: 4, fontWeight: '500' },
     headerTitle: { flex: 1, color: '#333', fontSize: 20, fontWeight: '700' },
     headerTitleCenter: { color: '#333', fontSize: 18, fontWeight: '700', textAlign: 'center' },
     listContainer: { paddingVertical: 12 },

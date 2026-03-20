@@ -9,7 +9,7 @@ import LoginScreen from "./src/screens/LoginScreen";
 import MainTabs from "./src/navigation/MainTabs";
 import CheckeoFormScreen from "./src/screens/CheckeoFormScreen";
 import PatenteShowScreen from "./src/screens/PatenteShowScreen";
-import { initNotifications } from "./src/notifications/setup";
+import { initNotifications, clearAllNotifications } from "./src/notifications/setup";
 import { NiceAlertHost, NiceAlertRegistrar } from "./src/components/NiceAlert";
 
 export type RootStackParamList = {
@@ -37,11 +37,15 @@ export default function App() {
 
     useEffect(() => {
         initNotifications();
+        // Limpiamos al abrir la app inicialmente
+        clearAllNotifications();
     }, []);
 
     useEffect(() => {
         const sub = AppState.addEventListener('change', (s) => {
+            // Cada vez que la app vuelve a primer plano, limpiamos la bandeja
             if (s === 'active') {
+                clearAllNotifications();
             }
         });
         return () => sub.remove();
@@ -49,6 +53,7 @@ export default function App() {
 
     useEffect(() => {
         const unsubOpen = messaging().onNotificationOpenedApp(async (msg) => {
+            clearAllNotifications();
             if (navigationRef.isReady()) {
                 navigationRef.navigate("Main");
             }
@@ -56,6 +61,7 @@ export default function App() {
 
         messaging().getInitialNotification().then(async (msg) => {
             if (!msg) return;
+            clearAllNotifications();
             if (navigationRef.isReady()) {
                 navigationRef.navigate("Main");
             }

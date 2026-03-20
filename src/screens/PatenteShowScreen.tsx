@@ -53,39 +53,42 @@ export default function PatenteShowScreen() {
         const ultima = historial[0];
 
         if (!ultima.completado) return { texto: 'Pendiente', color: 'orange' };
-
-        const tieneFallos =
-            ultima.extintor !== 0 || ultima.kit_derrame !== 0 ||
-            !ultima.botiquin || !ultima.gata || !ultima.cadenas ||
-            !ultima.llave_rueda || !ultima.antena_radio || !ultima.permiso_circulacion ||
-            !ultima.revision_tecnica || !ultima.soap || !ultima.alcohol ||
-            !ultima.protector_solar || !ultima.carpeta || !ultima.panos_limpieza ||
-            !ultima.conos || !ultima.radio_comunicacion || !ultima.espejo_inspeccion ||
-            !ultima.toldo || !ultima.pie_de_metro || !ultima.tintas || !ultima.arnes ||
-            ultima.falta_diclofenaco_cant < 3 || ultima.falta_guantes_cant < 3 ||
-            ultima.falta_parche_curita_cant < 5 || ultima.falta_gasa_cant < 10 ||
-            ultima.falta_venda_cant < 1 || ultima.falta_suero_cant < 3 ||
-            ultima.falta_tela_adhesiva_cant < 1 || ultima.falta_palitos_cant < 6;
-
-        return tieneFallos ? { texto: 'No Conforme', color: 'red' } : { texto: 'Conforme', color: 'green' };
+        return ultima.conforme ? { texto: 'Conforme', color: 'green' } : { texto: 'No Conforme', color: 'red' };
     };
 
     const estadoGeneral = evaluarEstadoGeneral();
 
-    const renderValorTabla = (valor: any, esBooleano: boolean = true, req: number = 0, opciones?: any) => {
-        if (opciones) {
-            const index = Number(valor);
-            const esValido = index === 0;
-            return <Text style={[styles.cellValue, { color: esValido ? 'green' : 'red' }]}>{opciones[index] || 'Desconocido'}</Text>;
+    const renderValorTabla = (valor: any, tipo: 'booleano' | 'extintor' | 'kit' | 'cantidad', req: number = 0) => {
+        if (valor === null || valor === undefined || valor === '') {
+            return <Text style={[styles.cellValue, { color: '#888' }]}>Sin responder</Text>;
         }
 
-        if (esBooleano) {
+        if (tipo === 'extintor') {
+            const esVerde = valor === 'extintor_si';
+            const texto = valor === 'extintor_si' ? 'Sí' : (valor === 'extintor_no' ? 'No' : 'Vencido');
+            return <Text style={[styles.cellValue, { color: esVerde ? 'green' : 'red' }]}>{texto}</Text>;
+        }
+
+        if (tipo === 'kit') {
+            const esVerde = valor === 'kit_si';
+            const texto = valor === 'kit_si' ? 'Sí' : (valor === 'kit_no' ? 'No' : (valor === 'kit_falta_pala' ? 'Sin Pala' : 'Sin Bolsa'));
+            return <Text style={[styles.cellValue, { color: esVerde ? 'green' : 'red' }]}>{texto}</Text>;
+        }
+
+        if (tipo === 'booleano') {
             return <Text style={[styles.cellValue, { color: valor ? 'green' : 'red' }]}>{valor ? 'Sí' : 'No'}</Text>;
         }
 
         const num = Number(valor) || 0;
         const esValido = num >= req;
         return <Text style={[styles.cellValue, { color: esValido ? 'green' : 'red' }]}>{num} / {req}</Text>;
+    };
+
+    const formatearValorParaModal = (valor: any, tipo: 'booleano' | 'extintor' | 'kit') => {
+        if (valor === null || valor === undefined || valor === '') return "Sin responder";
+        if (tipo === 'extintor') return valor === 'extintor_si' ? 'Sí' : (valor === 'extintor_no' ? 'No' : 'Vencido');
+        if (tipo === 'kit') return valor === 'kit_si' ? 'Sí' : (valor === 'kit_no' ? 'No' : (valor === 'kit_falta_pala' ? 'Sin Pala' : 'Sin Bolsa'));
+        return valor ? 'Sí' : 'No';
     };
 
     const renderCalendarioAnual = () => {
@@ -134,7 +137,7 @@ export default function PatenteShowScreen() {
                 <View style={styles.headerCard}>
                     <Text style={styles.title}>Patente: {codigo}</Text>
                     <Text style={styles.statusLine}>
-                        Estado actual: <Text style={{ color: estadoGeneral.color, fontWeight: '700' }}>{estadoGeneral.texto}</Text>
+                        Estado de última inspección: <Text style={{ color: estadoGeneral.color, fontWeight: '700' }}>{estadoGeneral.texto}</Text>
                     </Text>
                 </View>
 
@@ -158,7 +161,6 @@ export default function PatenteShowScreen() {
                     <View style={styles.horizontalWrapper}>
                         <ScrollView horizontal showsHorizontalScrollIndicator={true}>
                             <View style={styles.gridContainer}>
-                                {/* Columna Izquierda: Etiquetas Fijas */}
                                 <View style={styles.labelsColumn}>
                                     <Text style={[styles.cellLabel, styles.headerCell]}>Fecha</Text>
                                     <Text style={[styles.cellLabel, styles.headerCell]}>Inspectores</Text>
@@ -197,10 +199,11 @@ export default function PatenteShowScreen() {
                                     <Text style={styles.cellLabel}>Palitos (Req: 6)</Text>
                                 </View>
 
-                                {/* Columnas Dinámicas: Una por cada Inspección */}
                                 {historial.map((col, idx) => {
                                     const inspectores = col.check_usuarios?.map((u: any) => u.nombre).join(', ') || 'Sin asignar';
                                     const soyDueno = col.check_usuarios?.some((u: any) => String(u.id) === currentUserId);
+                                    const esHoy = col.fecha_chequeo === new Date().toISOString().split('T')[0];
+                                    const textoBoton = soyDueno ? (esHoy ? "Realizar" : "Corregir") : "Reportar";
 
                                     return (
                                         <View key={col.id} style={[styles.dataColumn, idx % 2 === 1 && styles.dataColumnAlt]}>
@@ -209,43 +212,43 @@ export default function PatenteShowScreen() {
                                             <View style={[styles.cellAction, styles.headerCell]}>
                                                 <PillButton
                                                     size="sm"
-                                                    title={soyDueno ? "Realizar/Corregir" : "Reportar"}
+                                                    title={textoBoton}
                                                     variant={soyDueno ? "primary" : "outline"}
                                                     onPress={() => nav.navigate('CheckeoForm', { checkeoId: col.id })}
                                                 />
                                             </View>
 
-                                            {renderValorTabla(col.extintor, false, 0, {0: 'Sí', 1: 'No', 2: 'Vencido'})}
-                                            {renderValorTabla(col.kit_derrame, false, 0, {0: 'Sí', 1: 'No', 2: 'Sin Pala', 3: 'Sin Bolsa'})}
-                                            {renderValorTabla(col.botiquin)}
-                                            {renderValorTabla(col.gata)}
-                                            {renderValorTabla(col.cadenas)}
-                                            {renderValorTabla(col.llave_rueda)}
-                                            {renderValorTabla(col.antena_radio)}
-                                            {renderValorTabla(col.permiso_circulacion)}
-                                            {renderValorTabla(col.revision_tecnica)}
-                                            {renderValorTabla(col.soap)}
-                                            {renderValorTabla(col.alcohol)}
-                                            {renderValorTabla(col.protector_solar)}
-                                            {renderValorTabla(col.carpeta)}
-                                            {renderValorTabla(col.panos_limpieza)}
-                                            {renderValorTabla(col.conos)}
-                                            {renderValorTabla(col.radio_comunicacion)}
-                                            {renderValorTabla(col.espejo_inspeccion)}
-                                            {renderValorTabla(col.toldo)}
-                                            {renderValorTabla(col.pie_de_metro)}
-                                            {renderValorTabla(col.tintas)}
-                                            {renderValorTabla(col.arnes)}
+                                            {renderValorTabla(col.extintor, 'extintor')}
+                                            {renderValorTabla(col.kit_derrame, 'kit')}
+                                            {renderValorTabla(col.botiquin, 'booleano')}
+                                            {renderValorTabla(col.gata, 'booleano')}
+                                            {renderValorTabla(col.cadenas, 'booleano')}
+                                            {renderValorTabla(col.llave_rueda, 'booleano')}
+                                            {renderValorTabla(col.antena_radio, 'booleano')}
+                                            {renderValorTabla(col.permiso_circulacion, 'booleano')}
+                                            {renderValorTabla(col.revision_tecnica, 'booleano')}
+                                            {renderValorTabla(col.soap, 'booleano')}
+                                            {renderValorTabla(col.alcohol, 'booleano')}
+                                            {renderValorTabla(col.protector_solar, 'booleano')}
+                                            {renderValorTabla(col.carpeta, 'booleano')}
+                                            {renderValorTabla(col.panos_limpieza, 'booleano')}
+                                            {renderValorTabla(col.conos, 'booleano')}
+                                            {renderValorTabla(col.radio_comunicacion, 'booleano')}
+                                            {renderValorTabla(col.espejo_inspeccion, 'booleano')}
+                                            {renderValorTabla(col.toldo, 'booleano')}
+                                            {renderValorTabla(col.pie_de_metro, 'booleano')}
+                                            {renderValorTabla(col.tintas, 'booleano')}
+                                            {renderValorTabla(col.arnes, 'booleano')}
 
                                             <Text style={[styles.cellValue, styles.sectionHeaderCell]}></Text>
-                                            {renderValorTabla(col.falta_diclofenaco_cant, false, 3)}
-                                            {renderValorTabla(col.falta_guantes_cant, false, 3)}
-                                            {renderValorTabla(col.falta_parche_curita_cant, false, 5)}
-                                            {renderValorTabla(col.falta_gasa_cant, false, 10)}
-                                            {renderValorTabla(col.falta_venda_cant, false, 1)}
-                                            {renderValorTabla(col.falta_suero_cant, false, 3)}
-                                            {renderValorTabla(col.falta_tela_adhesiva_cant, false, 1)}
-                                            {renderValorTabla(col.falta_palitos_cant, false, 6)}
+                                            {renderValorTabla(col.falta_diclofenaco_cant, 'cantidad', 3)}
+                                            {renderValorTabla(col.falta_guantes_cant, 'cantidad', 3)}
+                                            {renderValorTabla(col.falta_parche_curita_cant, 'cantidad', 5)}
+                                            {renderValorTabla(col.falta_gasa_cant, 'cantidad', 10)}
+                                            {renderValorTabla(col.falta_venda_cant, 'cantidad', 1)}
+                                            {renderValorTabla(col.falta_suero_cant, 'cantidad', 3)}
+                                            {renderValorTabla(col.falta_tela_adhesiva_cant, 'cantidad', 1)}
+                                            {renderValorTabla(col.falta_palitos_cant, 'cantidad', 6)}
                                         </View>
                                     );
                                 })}
@@ -261,10 +264,10 @@ export default function PatenteShowScreen() {
                 )}
             </ScrollView>
 
-            {/* Modal solo para el calendario Anual */}
             <Modal visible={!!modalData} transparent animationType="fade" onRequestClose={() => setModalData(null)}>
-                <Pressable style={styles.modalFullBackdrop} onPress={() => setModalData(null)}>
-                    <Pressable style={styles.modalLargeContent} onPress={(e) => e.stopPropagation()}>
+                <View style={styles.modalFullBackdrop}>
+                    <Pressable style={StyleSheet.absoluteFill} onPress={() => setModalData(null)} />
+                    <View style={styles.modalLargeContent}>
                         <View style={styles.modalHeaderRow}>
                             <Text style={styles.modalTitle}>Datos de la Inspección</Text>
                             <Pressable onPress={() => setModalData(null)} hitSlop={10}>
@@ -272,46 +275,48 @@ export default function PatenteShowScreen() {
                             </Pressable>
                         </View>
 
-                        <ScrollView style={{ flex: 1 }}>
+                        <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={true}>
                             {modalData && (
                                 <View style={{ gap: 8 }}>
                                     <Text style={styles.dataRow}>Fecha: {formatFecha(modalData.fecha_chequeo)}</Text>
-                                    <Text style={styles.dataRow}>Extintor: {modalData.extintor}</Text>
-                                    <Text style={styles.dataRow}>Kit Derrame: {modalData.kit_derrame}</Text>
-                                    <Text style={styles.dataRow}>Botiquín: {modalData.botiquin ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Gata: {modalData.gata ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Cadenas: {modalData.cadenas ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Llave de rueda: {modalData.llave_rueda ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Antena de radio: {modalData.antena_radio ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Permiso circulación: {modalData.permiso_circulacion ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Revisión técnica: {modalData.revision_tecnica ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>SOAP: {modalData.soap ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Alcohol: {modalData.alcohol ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Protector Solar: {modalData.protector_solar ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Carpeta: {modalData.carpeta ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Paños limpieza: {modalData.panos_limpieza ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Conos: {modalData.conos ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Radio comunicación: {modalData.radio_comunicacion ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Espejo de inspección: {modalData.espejo_inspeccion ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Toldo: {modalData.toldo ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Pie de metro: {modalData.pie_de_metro ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Tintas: {modalData.tintas ? 'Sí' : 'No'}</Text>
-                                    <Text style={styles.dataRow}>Arnés: {modalData.arnes ? 'Sí' : 'No'}</Text>
+
+                                    <Text style={[styles.dataRow, { marginTop: 12, fontWeight: '700' }]}>Estado General:</Text>
+                                    <Text style={styles.dataRow}>Extintor: {formatearValorParaModal(modalData.extintor, 'extintor')}</Text>
+                                    <Text style={styles.dataRow}>Kit Derrame: {formatearValorParaModal(modalData.kit_derrame, 'kit')}</Text>
+                                    <Text style={styles.dataRow}>Botiquín: {formatearValorParaModal(modalData.botiquin, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Gata: {formatearValorParaModal(modalData.gata, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Cadenas: {formatearValorParaModal(modalData.cadenas, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Llave de rueda: {formatearValorParaModal(modalData.llave_rueda, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Antena de radio: {formatearValorParaModal(modalData.antena_radio, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Permiso circulación: {formatearValorParaModal(modalData.permiso_circulacion, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Revisión técnica: {formatearValorParaModal(modalData.revision_tecnica, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>SOAP: {formatearValorParaModal(modalData.soap, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Alcohol: {formatearValorParaModal(modalData.alcohol, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Protector Solar: {formatearValorParaModal(modalData.protector_solar, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Carpeta: {formatearValorParaModal(modalData.carpeta, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Paños limpieza: {formatearValorParaModal(modalData.panos_limpieza, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Conos: {formatearValorParaModal(modalData.conos, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Radio comunicación: {formatearValorParaModal(modalData.radio_comunicacion, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Espejo de inspección: {formatearValorParaModal(modalData.espejo_inspeccion, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Toldo: {formatearValorParaModal(modalData.toldo, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Pie de metro: {formatearValorParaModal(modalData.pie_de_metro, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Tintas: {formatearValorParaModal(modalData.tintas, 'booleano')}</Text>
+                                    <Text style={styles.dataRow}>Arnés: {formatearValorParaModal(modalData.arnes, 'booleano')}</Text>
 
                                     <Text style={[styles.dataRow, { marginTop: 12, fontWeight: '700' }]}>Faltantes Botiquín:</Text>
-                                    <Text style={styles.dataRow}>Diclofenaco: {modalData.falta_diclofenaco_cant}</Text>
-                                    <Text style={styles.dataRow}>Guantes: {modalData.falta_guantes_cant}</Text>
-                                    <Text style={styles.dataRow}>Parches: {modalData.falta_parche_curita_cant}</Text>
-                                    <Text style={styles.dataRow}>Gasa: {modalData.falta_gasa_cant}</Text>
-                                    <Text style={styles.dataRow}>Venda: {modalData.falta_venda_cant}</Text>
-                                    <Text style={styles.dataRow}>Suero: {modalData.falta_suero_cant}</Text>
-                                    <Text style={styles.dataRow}>Tela Adhesiva: {modalData.falta_tela_adhesiva_cant}</Text>
-                                    <Text style={styles.dataRow}>Palitos: {modalData.falta_palitos_cant}</Text>
+                                    <Text style={styles.dataRow}>Diclofenaco: {modalData.falta_diclofenaco_cant ?? 'Sin responder'} / 3</Text>
+                                    <Text style={styles.dataRow}>Guantes: {modalData.falta_guantes_cant ?? 'Sin responder'} / 3</Text>
+                                    <Text style={styles.dataRow}>Parches: {modalData.falta_parche_curita_cant ?? 'Sin responder'} / 5</Text>
+                                    <Text style={styles.dataRow}>Gasa: {modalData.falta_gasa_cant ?? 'Sin responder'} / 10</Text>
+                                    <Text style={styles.dataRow}>Venda: {modalData.falta_venda_cant ?? 'Sin responder'} / 1</Text>
+                                    <Text style={styles.dataRow}>Suero: {modalData.falta_suero_cant ?? 'Sin responder'} / 3</Text>
+                                    <Text style={styles.dataRow}>Tela Adhesiva: {modalData.falta_tela_adhesiva_cant ?? 'Sin responder'} / 1</Text>
+                                    <Text style={styles.dataRow}>Palitos: {modalData.falta_palitos_cant ?? 'Sin responder'} / 6</Text>
                                 </View>
                             )}
                         </ScrollView>
-                    </Pressable>
-                </Pressable>
+                    </View>
+                </View>
             </Modal>
         </SafeAreaView>
     );
@@ -351,7 +356,7 @@ const styles = StyleSheet.create({
     dayText: { fontSize: 10, color: '#999' },
     dayTextActive: { color: '#fff', fontWeight: '700' },
 
-    modalFullBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 16 },
+    modalFullBackdrop: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 16, zIndex: 999 },
     modalLargeContent: { backgroundColor: '#fff', borderRadius: 16, padding: 20, maxHeight: '80%' },
     modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottomWidth: 1, borderColor: '#eee', paddingBottom: 12 },
     modalTitle: { fontSize: 20, fontWeight: '700' },
