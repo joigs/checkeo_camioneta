@@ -53,6 +53,9 @@ export default function CheckeoFormScreen() {
     const [valores, setValores] = useState<Record<string, any>>({});
     const [esDueno, setEsDueno] = useState(false);
     const [estadoEliminacionPropio, setEstadoEliminacionPropio] = useState(0);
+    const [eliminacionConfirmados, setEliminacionConfirmados] = useState(0);
+    const [eliminacionTotal, setEliminacionTotal] = useState(1);
+
     const [patente, setPatente] = useState('');
     const [inspectoresNombres, setInspectoresNombres] = useState<string>('');
     const [guardando, setGuardando] = useState(false);
@@ -69,6 +72,8 @@ export default function CheckeoFormScreen() {
             setValores(data);
             setPatente(data.check_patente?.codigo || '');
             setEstadoEliminacionPropio(data.estado_eliminacion_propio || 0);
+            setEliminacionConfirmados(data.eliminacion_confirmados || 0);
+            setEliminacionTotal(data.eliminacion_total || 1);
 
             const dueno = data.check_usuarios?.some((u: any) => String(u.id) === currentUserId);
             setEsDueno(dueno);
@@ -134,14 +139,22 @@ export default function CheckeoFormScreen() {
     const confirmarEliminacion = () => {
         niceAlert(
             "Eliminar Inspección",
-            "¿Estás seguro de que quieres solicitar la eliminación de esta inspección? Se notificará a los demás inspectores para su aprobación.",
+            "¿Estás seguro de que quieres solicitar la eliminación de esta inspección?",
             "Sí, Eliminar",
             async () => {
                 try {
                     const currentUserId = await AsyncStorage.getItem("usuario_id");
-                    await postJson(`checkeos/${checkeoId}/solicitar_eliminacion`, {}, { Authorization: `Bearer ${currentUserId}` });
-                    setEstadoEliminacionPropio(1);
-                    niceAlert("Solicitud enviada", "Se ha notificado a los demás inspectores.");
+                    const resp = await postJson<any>(`checkeos/${checkeoId}/solicitar_eliminacion`, {}, { Authorization: `Bearer ${currentUserId}` });
+
+                    if (resp.deleted) {
+                        niceAlert("Eliminada", "La inspección ha sido eliminada por completo.");
+                        nav.goBack();
+                    } else {
+                        setEstadoEliminacionPropio(1);
+                        setEliminacionConfirmados(resp.confirmados);
+                        setEliminacionTotal(resp.total);
+                        niceAlert("Solicitud registrada", "Esperando la confirmación de los demás inspectores.");
+                    }
                 } catch (e) {
                     niceAlert("Error", "No se pudo enviar la solicitud");
                 }
@@ -158,8 +171,12 @@ export default function CheckeoFormScreen() {
             async () => {
                 try {
                     const currentUserId = await AsyncStorage.getItem("usuario_id");
-                    await postJson(`checkeos/${checkeoId}/cancelar_eliminacion`, {}, { Authorization: `Bearer ${currentUserId}` });
+                    const resp = await postJson<any>(`checkeos/${checkeoId}/cancelar_eliminacion`, {}, { Authorization: `Bearer ${currentUserId}` });
+
                     setEstadoEliminacionPropio(0);
+                    setEliminacionConfirmados(resp.confirmados);
+                    setEliminacionTotal(resp.total);
+
                     niceAlert("Cancelado", "Tu solicitud de eliminación ha sido cancelada.");
                 } catch (e) {
                     niceAlert("Error", "No se pudo cancelar la solicitud");
@@ -184,6 +201,9 @@ export default function CheckeoFormScreen() {
 
     const ext = valores.extintor;
     const kit = valores.kit_derrame;
+
+    const textoEliminar = eliminacionTotal > 1 ? `Eliminar Inspección (${eliminacionConfirmados}/${eliminacionTotal})` : "Eliminar Inspección";
+    const textoCancelar = eliminacionTotal > 1 ? `Cancelar Eliminación (${eliminacionConfirmados}/${eliminacionTotal})` : "Cancelar Eliminación";
 
     return (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -305,9 +325,9 @@ export default function CheckeoFormScreen() {
                     <View style={styles.footerActions}>
                         <PillButton title={guardando ? "Guardando..." : "Guardar Cambios"} onPress={guardarCambios} disabled={guardando} />
                         {estadoEliminacionPropio === 1 ? (
-                            <PillButton title="Cancelar Eliminación" variant="outline" onPress={cancelarEliminacion} />
+                            <PillButton title={textoCancelar} variant="outline" onPress={cancelarEliminacion} />
                         ) : (
-                            <PillButton title="Eliminar Inspección" variant="danger" onPress={confirmarEliminacion} />
+                            <PillButton title={textoEliminar} variant="danger" onPress={confirmarEliminacion} />
                         )}
                     </View>
                 )}

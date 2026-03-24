@@ -14,7 +14,7 @@ import { NiceAlertHost, NiceAlertRegistrar } from "./src/components/NiceAlert";
 
 export type RootStackParamList = {
     Login: undefined;
-    Main: undefined;
+    Main: { screen: string } | undefined;
     CheckeoForm: { checkeoId?: number };
     PatenteShow: { patenteId: number; codigo: string };
 };
@@ -37,13 +37,11 @@ export default function App() {
 
     useEffect(() => {
         initNotifications();
-        // Limpiamos al abrir la app inicialmente
         clearAllNotifications();
     }, []);
 
     useEffect(() => {
         const sub = AppState.addEventListener('change', (s) => {
-            // Cada vez que la app vuelve a primer plano, limpiamos la bandeja
             if (s === 'active') {
                 clearAllNotifications();
             }
@@ -55,7 +53,7 @@ export default function App() {
         const unsubOpen = messaging().onNotificationOpenedApp(async (msg) => {
             clearAllNotifications();
             if (navigationRef.isReady()) {
-                navigationRef.navigate("Main");
+                navigationRef.navigate("Main", { screen: "Notificaciones" });
             }
         });
 
@@ -63,7 +61,7 @@ export default function App() {
             if (!msg) return;
             clearAllNotifications();
             if (navigationRef.isReady()) {
-                navigationRef.navigate("Main");
+                navigationRef.navigate("Main", { screen: "Notificaciones" });
             }
         });
 
