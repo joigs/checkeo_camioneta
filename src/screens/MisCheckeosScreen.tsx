@@ -121,13 +121,12 @@ export default function MisCheckeosScreen() {
     const renderItem = ({ item }: { item: CheckeoRow }) => {
         const esHoy = item.fecha_chequeo === new Date().toISOString().split('T')[0];
 
-        // Filtramos para sacar el nombre del usuario logueado de la lista
         const otrosInspectores = item.check_usuarios
             ?.filter((u: any) => String(u.id) !== String(currentUserId))
             .map((u: any) => u.nombre)
             .join(', ');
 
-        const textoInspectores = otrosInspectores ? otrosInspectores : 'Ninguno (Solo tú)';
+        const textoInspectores = otrosInspectores ? otrosInspectores : '(Solo tú)';
 
         return (
             <View style={styles.card}>
@@ -158,7 +157,7 @@ export default function MisCheckeosScreen() {
     );
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }} edges={['bottom']}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }} edges={['left', 'right']}>
             <View style={styles.searchWrap}>
                 <Text style={styles.searchIcon}>🔎</Text>
                 <TextInput
@@ -198,7 +197,7 @@ export default function MisCheckeosScreen() {
                                     value={patenteCodigoInput}
                                     onChangeText={(val) => { setPatenteCodigoInput(val); setShowPatentesList(true); setShowUsuariosList(false); }}
                                     onFocus={() => { setShowPatentesList(true); setShowUsuariosList(false); }}
-                                    placeholder="Ej: AB-CD-12"
+                                    placeholder=" "
                                     autoCapitalize="characters"
                                 />
                                 {showPatentesList && patentesFiltradas.length > 0 && (
@@ -221,7 +220,7 @@ export default function MisCheckeosScreen() {
                                     value={usuarioSearch}
                                     onChangeText={(val) => { setUsuarioSearch(val); setShowUsuariosList(true); setShowPatentesList(false); }}
                                     onFocus={() => { setShowUsuariosList(true); setShowPatentesList(false); }}
-                                    placeholder="Buscar usuario para agregar..."
+                                    placeholder="Buscar usuario..."
                                 />
                                 {showUsuariosList && usuariosFiltrados.length > 0 && (
                                     <View style={styles.autocompleteList}>
