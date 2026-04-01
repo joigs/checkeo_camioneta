@@ -1,7 +1,7 @@
 import React from "react";
-import { Platform, TouchableOpacity, Alert, Text } from "react-native";
+import { TouchableOpacity, Alert, Text } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Ionicons } from "@expo/vector-icons";
+import { FontAwesome, FontAwesome5, FontAwesome6 } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -44,7 +44,9 @@ export default function MainTabs() {
 
     const headerRight = () => (
         <TouchableOpacity onPress={handleLogout} style={{ paddingHorizontal: 16, paddingVertical: 6 }}>
-            <Text style={{ color: "#0A84FF", fontWeight: "600", fontSize: 16 }}>Cerrar sesión</Text>
+            <Text style={{ color: "#0A84FF", fontWeight: "600", fontSize: 16 }}>
+                Cerrar sesión
+            </Text>
         </TouchableOpacity>
     );
 
@@ -59,17 +61,26 @@ export default function MainTabs() {
                 tabBarLabelStyle: { fontSize: 12, marginBottom: 4 },
                 tabBarStyle: {
                     height: 60 + insets.bottom,
-                    paddingBottom: insets.bottom || 8
+                    paddingBottom: insets.bottom || 8,
                 },
                 tabBarIcon: ({ color, size }) => {
-                    let iconName = "ellipse-outline";
+                    if (route.name === "MisCheckeos") {
+                        return <FontAwesome6 name="user-check" size={size} color={color} />;
+                    }
 
-                    if (route.name === "MisCheckeos") iconName = "checkmark-circle-outline";
-                    else if (route.name === "TodosCheckeos") iconName = "list-outline";
-                    else if (route.name === "Patentes") iconName = "car-outline";
-                    else if (route.name === "Notificaciones") iconName = "notifications-outline";
+                    if (route.name === "TodosCheckeos") {
+                        return <FontAwesome name="check-square-o" size={size} color={color} />;
+                    }
 
-                    return <Ionicons name={iconName as any} size={size} color={color} />;
+                    if (route.name === "Patentes") {
+                        return <FontAwesome5 name="car-side" size={size} color={color} />;
+                    }
+
+                    if (route.name === "Notificaciones") {
+                        return <FontAwesome name="bell" size={size} color={color} />;
+                    }
+
+                    return null;
                 },
             })}
         >
