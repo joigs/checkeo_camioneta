@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@notifee/react-native": "^9.1.8",
-    "@rails/actioncable": "^8.1.200",
+    "@rails/actioncable": "^8.1.300",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-firebase/app": "^23.3.1",
     "@react-native-firebase/messaging": "^23.3.1",
