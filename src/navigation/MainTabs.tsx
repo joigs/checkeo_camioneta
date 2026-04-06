@@ -1,10 +1,10 @@
 import React from "react";
 import { TouchableOpacity, Alert, Text } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { FontAwesome, FontAwesome5, FontAwesome6 } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ClipboardCheck, ListChecks, Car, Bell } from "lucide-react-native";
 
 import MisCheckeosScreen from "../screens/MisCheckeosScreen";
 import TodosCheckeosScreen from "../screens/TodosCheckeosScreen";
@@ -65,21 +65,17 @@ export default function MainTabs() {
                 },
                 tabBarIcon: ({ color, size }) => {
                     if (route.name === "MisCheckeos") {
-                        return <FontAwesome6 name="user-check" size={size} color={color} />;
+                        return <ClipboardCheck size={size} color={color} strokeWidth={1.8} />;
                     }
-
                     if (route.name === "TodosCheckeos") {
-                        return <FontAwesome name="check-square-o" size={size} color={color} />;
+                        return <ListChecks size={size} color={color} strokeWidth={1.8} />;
                     }
-
                     if (route.name === "Patentes") {
-                        return <FontAwesome5 name="car-side" size={size} color={color} />;
+                        return <Car size={size} color={color} strokeWidth={1.8} />;
                     }
-
                     if (route.name === "Notificaciones") {
-                        return <FontAwesome name="bell" size={size} color={color} />;
+                        return <Bell size={size} color={color} strokeWidth={1.8} />;
                     }
-
                     return null;
                 },
             })}

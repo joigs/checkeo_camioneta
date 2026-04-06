@@ -9,6 +9,8 @@ import { niceAlert } from '../components/NiceAlert';
 
 type Periodo = 'semana' | 'mes' | 'año';
 
+const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
 export default function PatenteShowScreen() {
     const route = useRoute<any>();
     const nav = useNavigation<any>();
@@ -19,16 +21,23 @@ export default function PatenteShowScreen() {
     const [fechaServidor, setFechaServidor] = useState<string>('');
     const [modalData, setModalData] = useState<any | null>(null);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [ultimaInspeccion, setUltimaInspeccion] = useState<any | null>(null);
+    const [anoSeleccionado, setAnoSeleccionado] = useState<number>(new Date().getFullYear());
+    const [cargando, setCargando] = useState(false);
 
     const cargarHistorial = async (p: Periodo) => {
         try {
+            setCargando(true);
+            setHistorial([]);
             const userId = await AsyncStorage.getItem("usuario_id");
             setCurrentUserId(userId);
             if (!userId) return;
 
             const periodoQuery = p === 'año' ? 'ano' : p;
-            const data = await getJson<any>(`patentes/${patenteId}?periodo=${periodoQuery}`, userId);
+            const anoQuery = p === 'año' ? `&ano=${anoSeleccionado}` : '';
+            const data = await getJson<any>(`patentes/${patenteId}?periodo=${periodoQuery}${anoQuery}`, userId);
             setFechaServidor(data.fecha_servidor);
+            setUltimaInspeccion(data.ultima_inspeccion || null);
 
             const checkeosOrdenados = (data.checkeos || []).sort((a: any, b: any) =>
                 new Date(b.fecha_chequeo).getTime() - new Date(a.fecha_chequeo).getTime()
@@ -37,23 +46,33 @@ export default function PatenteShowScreen() {
             setHistorial(checkeosOrdenados);
         } catch (e) {
             niceAlert("Error", "No se pudo cargar el historial");
+        } finally {
+            setCargando(false);
         }
     };
 
     useFocusEffect(
         useCallback(() => {
             cargarHistorial(periodo);
-        }, [periodo, patenteId])
+        }, [periodo, patenteId, anoSeleccionado])
     );
 
     const formatFecha = (f: string) => f ? f.split('-').reverse().join('/') : '';
 
-    const evaluarEstadoGeneral = () => {
-        if (historial.length === 0) return { texto: 'Sin Inspecciones', color: '#666' };
-        const ultima = historial[0];
+    const formatFechaConDia = (f: string) => {
+        if (!f) return '';
+        const [y, m, d] = f.split('-').map(Number);
+        const date = new Date(y, m - 1, d);
+        const dia = DIAS_SEMANA[date.getDay()];
+        const dd = String(d).padStart(2, '0');
+        const mm = String(m).padStart(2, '0');
+        return `${dia}\n${dd}/${mm}`;
+    };
 
-        if (!ultima.completado) return { texto: 'Pendiente', color: 'orange' };
-        return ultima.conforme ? { texto: 'Conforme', color: 'green' } : { texto: 'No Conforme', color: 'red' };
+    const evaluarEstadoGeneral = () => {
+        if (!ultimaInspeccion) return { texto: 'Sin Inspecciones', color: '#666' };
+        if (!ultimaInspeccion.completado) return { texto: 'Pendiente', color: 'orange' };
+        return ultimaInspeccion.conforme ? { texto: 'Conforme', color: 'green' } : { texto: 'No Conforme', color: 'red' };
     };
 
     const estadoGeneral = evaluarEstadoGeneral();
@@ -91,8 +110,30 @@ export default function PatenteShowScreen() {
         return valor ? 'Sí' : 'No';
     };
 
+    const renderSelectorAno = () => {
+        const currentYear = fechaServidor ? parseInt(fechaServidor.split('-')[0], 10) : new Date().getFullYear();
+        const years = [];
+        for (let y = currentYear; y >= 2025; y--) {
+            years.push(y);
+        }
+
+        return (
+            <View style={styles.yearSelector}>
+                {years.map(y => (
+                    <Pressable
+                        key={y}
+                        style={[styles.yearBtn, anoSeleccionado === y && styles.yearBtnActive]}
+                        onPress={() => setAnoSeleccionado(y)}
+                    >
+                        <Text style={[styles.yearText, anoSeleccionado === y && styles.yearTextActive]}>{y}</Text>
+                    </Pressable>
+                ))}
+            </View>
+        );
+    };
+
     const renderCalendarioAnual = () => {
-        const year = fechaServidor ? parseInt(fechaServidor.split('-')[0], 10) : new Date().getFullYear();
+        const year = anoSeleccionado;
         const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
         return (
@@ -155,7 +196,13 @@ export default function PatenteShowScreen() {
                     ))}
                 </View>
 
-                {periodo === 'año' ? (
+                {periodo === 'año' && renderSelectorAno()}
+
+                {cargando ? (
+                    <View style={styles.emptyTable}>
+                        <Text style={{ color: '#888', fontStyle: 'italic', padding: 20 }}>Cargando...</Text>
+                    </View>
+                ) : periodo === 'año' ? (
                     renderCalendarioAnual()
                 ) : (
                     <View style={styles.horizontalWrapper}>
@@ -207,7 +254,7 @@ export default function PatenteShowScreen() {
 
                                     return (
                                         <View key={col.id} style={[styles.dataColumn, idx % 2 === 1 && styles.dataColumnAlt]}>
-                                            <Text style={[styles.cellValue, styles.headerCell, { fontWeight: '700' }]}>{formatFecha(col.fecha_chequeo)}</Text>
+                                            <Text style={[styles.cellValue, styles.headerCell, { fontWeight: '700' }]}>{formatFechaConDia(col.fecha_chequeo)}</Text>
                                             <Text style={[styles.cellValue, styles.headerCell]} numberOfLines={2}>{inspectores}</Text>
                                             <View style={[styles.cellAction, styles.headerCell]}>
                                                 <PillButton
@@ -331,6 +378,12 @@ const styles = StyleSheet.create({
     tabBtnActive: { backgroundColor: '#fff', elevation: 2 },
     tabText: { fontWeight: '600', color: '#6c757d' },
     tabTextActive: { color: '#212529' },
+
+    yearSelector: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 16 },
+    yearBtn: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: 6, backgroundColor: '#e9ecef' },
+    yearBtnActive: { backgroundColor: '#0A84FF' },
+    yearText: { fontWeight: '600', color: '#6c757d', fontSize: 14 },
+    yearTextActive: { color: '#fff' },
 
     horizontalWrapper: { backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#ddd', overflow: 'hidden' },
     gridContainer: { flexDirection: 'row' },
